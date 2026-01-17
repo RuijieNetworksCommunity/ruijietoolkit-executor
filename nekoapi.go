@@ -14,7 +14,7 @@ func get_api_url() string {
 	switch constant.Type {
 	case "dev":
 		return "https://api.colin.1tip.cc"
-	case "localtest":
+	case "localdev":
 		return "http://localhost:8000"
 	default:
 		return "https://api.emtips.net"
@@ -70,9 +70,9 @@ func get_licences_is_valid(token string, licences string) bool {
 	data_data := jsonObj["data"].(map[string]any)
 	is_valid := data_data["valid"]
 
-	if _, ok := is_valid.(bool); !ok {
-		return false
+	if ret, ok := is_valid.(bool); ok {
+		return ret
 	}
 
-	return is_valid.(bool)
+	return false
 }
