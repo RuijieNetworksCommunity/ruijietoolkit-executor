@@ -28,6 +28,8 @@ func findAvailableShell() string {
 }
 
 func main() {
+	log.Printf("Version: %s-%s", constant.Version, constant.AppName)
+	log.Printf("BuildTime: %s", constant.BuildTime)
 	constant.DefaultShell = findAvailableShell()
 	log.Printf("Detected Shell: %s", constant.DefaultShell)
 

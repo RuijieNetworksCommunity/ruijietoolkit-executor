@@ -1,4 +1,4 @@
-NAME=shelltool
+NAME=nekoapi-ruijietoolkit-executor
 BINDIR=bin
 VERSION=0.0.1
 
@@ -8,11 +8,11 @@ BUILDTIME=$(shell date -u)
 GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags \
 		'-X "shelltool/shelltool/constant.Version=$(VERSION)-$(TYPE)" \
 		-X "shelltool/shelltool/constant.BuildTime=$(BUILDTIME)" \
-		-X "shelltool/shelltool/constant.Type=$(TYPE)"'
+		-X "shelltool/shelltool/constant.AppType=$(TYPE)"'
 
 all: linux-amd64 \
 	  linux-arm64 linux-armv5 linux-armv6 linux-armv7 \
-	  linux-mips linux-mips64 linux-mips64le
+	  linux-mips linux-mipsle linux-mips64 linux-mips64le
 
 linux-amd64:
 	GOARCH=amd64 GOOS=linux GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
@@ -31,6 +31,9 @@ linux-armv7:
 
 linux-mips:
 	GOARCH=mips GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-mipsle:
+	GOARCH=mipsle GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 
 linux-mips64:
 	GOARCH=mips64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@

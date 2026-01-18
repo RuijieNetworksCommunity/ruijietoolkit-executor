@@ -13,9 +13,9 @@ import (
 func getAPIURL() string {
 	switch constant.AppType {
 	case "test":
-		return "https://api.colin.1tip.cc"
-	case "dev":
 		return "http://localhost:8000"
+	case "dev":
+		return "https://api.colin.1tip.cc"
 	default:
 		return "https://api.emtips.net"
 	}
