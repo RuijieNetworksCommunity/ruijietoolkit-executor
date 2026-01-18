@@ -1,98 +1,41 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
-
 	"shelltool/shelltool/constant"
-
-	"github.com/creack/pty"
-	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
+// =======================
+// 全局配置
+// =======================
 
-func wsHandler(w http.ResponseWriter, r *http.Request) {
+// findAvailableShell 自动探测系统可用的 Shell
+func findAvailableShell() string {
+	shells := []string{"/bin/bash", "/bin/ash", "/usr/bin/bash", "/bin/zsh", "/bin/sh"}
 
-	var token = r.URL.Query().Get("token")
-	var licences = r.URL.Query().Get("licences")
-	if len(token) <= 0 || len(licences) <= 0 {
-		// w.Write([]byte("need token and licences"))
-		return
-	}
-
-	is_valid := get_licences_is_valid(token, licences)
-	if !is_valid {
-		// w.Write([]byte("licences invalid"))
-		return
-	}
-
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("upgrade:", err)
-		// w.Write([]byte("something wrong"))
-		return
-	}
-	defer conn.Close()
-
-	var cmd *exec.Cmd
-
-	switch constant.Type {
-	case "dev":
-		cmd = exec.Command("/bin/login")
-	case "localdev":
-		cmd = exec.Command("/bin/bash")
-	default:
-		cmd = exec.Command("/bin/login")
-	}
-
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
-		log.Println("pty:", err)
-		// w.Write([]byte("something wrong"))
-		return
-	}
-	defer ptmx.Close()
-
-	// PTY → WebSocket
-	go func() {
-		buf := make([]byte, 1024)
-		for {
-			n, err := ptmx.Read(buf)
-			if err != nil {
-				return
-			}
-			conn.WriteMessage(websocket.BinaryMessage, buf[:n])
+	for _, s := range shells {
+		if info, err := os.Stat(s); err == nil && info.Mode()&0111 != 0 {
+			return s
 		}
-	}()
-
-	// WebSocket → PTY
-	for {
-		_, msg, err := conn.ReadMessage()
-		if err != nil {
-			// w.Write([]byte("something wrong"))
-			return
+		if path, err := exec.LookPath(s); err == nil {
+			return path
 		}
-		ptmx.Write(msg)
 	}
+	return "/bin/sh"
 }
 
 func main() {
-	fmt.Printf("Version: %s Buildtime: %s\n", constant.Version, constant.BuildTime)
+	constant.DefaultShell = findAvailableShell()
+	log.Printf("Detected Shell: %s", constant.DefaultShell)
 
-	http.HandleFunc("/ws", wsHandler)
+	http.HandleFunc("/ws", HandleWebSocket)
 
-	// 之后会移除
-	if constant.Type != "release" {
-		http.Handle("/", http.FileServer(http.Dir("./static")))
+	log.Printf("Executor Started | Mode: %s | API: %s", constant.AppType, getAPIURL())
+
+	if err := http.ListenAndServe(constant.ServerAddr, nil); err != nil {
+		log.Fatalf("Server failed to start: %v", err)
 	}
-
-	log.Println("Server started at :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
 }

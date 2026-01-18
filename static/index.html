@@ -1,60 +1,164 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-  <style>
-    .inputs   {
-      display: flex;
-      flex-direction: column;
-      max-width: 30rem;
-    }
-
-  </style>
   <meta charset="utf-8">
-  <title>Web Terminal</title>
+  <title>NekoAPI 远程执行终端</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
   <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
+  <style>
+    body { margin: 0; background: #1a1a1a; color: #eee; font-family: 'Segoe UI', Arial, sans-serif; }
+    .toolbar {
+      display: flex; gap: 12px; padding: 15px; background: #2d2d2d;
+      align-items: center; border-bottom: 2px solid #007bff; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+    .input-group { display: flex; align-items: center; gap: 5px; }
+    label { font-size: 11px; color: #888; text-transform: uppercase; font-weight: bold; }
+    input, select {
+      padding: 8px 12px; border-radius: 4px; border: 1px solid #444;
+      background: #3c3c3c; color: #fff; outline: none;
+    }
+    input:focus { border-color: #007bff; }
+    button {
+      padding: 8px 20px; cursor: pointer; background: #007bff; color: white;
+      border: none; border-radius: 4px; font-weight: bold;
+    }
+    button:hover { background: #0056b3; }
+    #terminal-container { width: 100%; height: calc(100vh - 75px); background: #000; padding: 5px; box-sizing: border-box; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4d4d; }
+    .connected { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+  </style>
 </head>
 <body>
-<div class="inputs">
-  <div>
-    <a>remote-ip</a>
-    <input id="ip-input"></input>
+
+<div class="toolbar">
+  <div id="status-indicator" class="status-dot"></div>
+
+  <div class="input-group">
+    <label>IP</label>
+    <input id="ip-input" value="127.0.0.1" style="width: 100px;">
   </div>
-  <div>
-    <a>token</a>
-    <input id="token-input"></input>
+
+  <div class="input-group">
+    <label>TOKEN</label>
+    <input id="token-input" placeholder="完整的 JWT Token" style="width: 250px;">
   </div>
-  <div>
-    <a>licences</a>
-    <input id="licences-input"></input>
+
+  <div class="input-group">
+    <label>KEY</label>
+    <input id="key-input" placeholder="License Key" style="width: 150px;">
   </div>
+
+  <select id="mode-select">
+    <option value="shell">交互终端</option>
+    <option value="exec">单次执行</option>
+  </select>
+
+  <input id="command-input" placeholder="输入命令..." style="display:none; width: 180px;">
+
+  <button id="connect-btn">连接</button>
 </div>
-<button id="connect-btn">connect</button>
-<div id="terminal" style="width:100%;height:100vh;"></div>
+
+<div id="terminal-container">
+  <div id="terminal" style="height: 100%;"></div>
+</div>
 
 <script>
   const term = new Terminal({
-    cursorBlink: true
+    cursorBlink: true,
+    fontSize: 14,
+    theme: { background: '#000' }
   });
   term.open(document.getElementById('terminal'));
 
-  document.getElementById("connect-btn").addEventListener("click",() => {
-    token = document.getElementById("token-input").value
-    licences = document.getElementById("licences-input").value
-    remote_ip = document.getElementById("ip-input").value
-    url = "ws://"+remote_ip+":8080/ws?token="+token+"&licences="+licences
-    const ws = new WebSocket(url);
-    ws.binaryType = "arraybuffer";
+  let activeWs = null;
 
-    ws.onmessage = e => {
-      term.write(new Uint8Array(e.data));
+  document.getElementById('mode-select').addEventListener('change', (e) => {
+    document.getElementById('command-input').style.display = e.target.value === 'exec' ? 'inline-block' : 'none';
+  });
+
+  document.getElementById("connect-btn").addEventListener("click", () => {
+    if (activeWs) activeWs.close();
+
+    // 1. 获取并深度清洗数据
+    let rawToken = document.getElementById("token-input").value.trim();
+
+    // 移除两端的引号 (针对你刚才 87 长度的问题，确保不是因为引号包裹)
+    rawToken = rawToken.replace(/^["']|["']$/g, '');
+
+    // 预检查：如果 Token 太短且没有点号，发出警告
+    if (rawToken.length < 100 || !rawToken.includes('.')) {
+      term.writeln("\x1b[31m[警告] 检测到 Token 长度异常或格式不完整，请重新复制完整的 JWT！\x1b[0m");
+    }
+
+    const config = {
+      ip: document.getElementById("ip-input").value.trim(),
+      token: rawToken,
+      key: document.getElementById("key-input").value.trim(),
+      mode: document.getElementById("mode-select").value,
+      cmd: document.getElementById("command-input").value.trim()
     };
 
-    term.onData(data => {
-      ws.send(data);
-    });
-  })
+    // 2. 关键修复：URL 编码。如果不编码，JWT 的 '.' 可能会导致后端 URL 解析截断
+    const encodedToken = encodeURIComponent(config.token);
+    const url = `ws://${config.ip}:54134/ws?access_token=${encodedToken}`;
 
+    try {
+      activeWs = new WebSocket(url);
+      activeWs.binaryType = "arraybuffer";
+
+      activeWs.onopen = () => {
+        document.getElementById('status-indicator').classList.add('connected');
+        term.writeln("\x1b[34m[系统] WebSocket 连接成功\x1b[0m");
+      };
+
+      activeWs.onmessage = async (e) => {
+        try {
+          const dataStr = typeof e.data === "string" ? e.data : new TextDecoder().decode(e.data);
+          const msg = JSON.parse(dataStr);
+
+          if (msg.type === "AUTH_REQUIRED") {
+            term.writeln("\x1b[33m[验证] 发送 Key...\x1b[0m");
+            activeWs.send(config.key);
+          }
+          else if (msg.type === "AUTH_SUCCESS") {
+            term.writeln("\x1b[32m[验证] 成功！进入 " + config.mode + " 模式\x1b[0m");
+            activeWs.send(JSON.stringify({
+              type: config.mode,
+              rows: term.rows,
+              cols: term.cols,
+              command: config.cmd
+            }));
+          }
+          else if (msg.type === "EXEC_RESULT") {
+            term.writeln("\r\n\x1b[36m--- 执行结果 ---\x1b[0m");
+            if (msg.stdout) term.write(msg.stdout);
+            if (msg.stderr) term.write("\x1b[31m" + msg.stderr + "\x1b[0m");
+            term.writeln(`\x1b[36m\r\n--- 退出码: ${msg.code} ---\x1b[0m`);
+          }
+          else if (msg.type === "AUTH_FAILED" || msg.error) {
+            term.writeln(`\x1b[31m[错误] ${msg.msg || msg.error}\x1b[0m`);
+          }
+        } catch (err) {
+          // 二进制 PTY 数据流
+          term.write(new Uint8Array(e.data));
+        }
+      };
+
+      activeWs.onclose = () => {
+        document.getElementById('status-indicator').classList.remove('connected');
+        term.writeln("\r\n\x1b[31m[系统] 连接已关闭\x1b[0m");
+      };
+
+    } catch (e) {
+      term.writeln(`\x1b[31m[错误] ${e.message}\x1b[0m`);
+    }
+  });
+
+  term.onData(data => {
+    if (activeWs && activeWs.readyState === WebSocket.OPEN) {
+      activeWs.send(data);
+    }
+  });
 </script>
 </body>
 </html>
