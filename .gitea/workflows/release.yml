@@ -1,5 +1,9 @@
 name: Release
 
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: false
+
 on:
   workflow_dispatch:
   pull_request:
@@ -26,6 +30,9 @@ jobs:
       - name: Build
         run: make all
 
+      - name: Generate release name
+        run: echo "RELEASE_NAME=V$(date +'%Y.%m.%d.%H.%M')" >> $GITHUB_ENV
+
       - name: Create Release and Upload Assets
         uses: akkuman/gitea-release-action@v1
         with:
@@ -33,5 +40,5 @@ jobs:
           server_url: ${{ gitea.server_url }}
           files: |
             bin/*
-          name: Release ${{ github.ref_name }}
-          body: "Automated release for ${{ github.ref_name }}"
+          name: ${{ env.RELEASE_NAME }}
+          body: "Automated release created by Gitea Actions"
