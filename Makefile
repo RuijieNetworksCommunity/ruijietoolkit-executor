@@ -3,11 +3,12 @@ BINDIR=bin
 VERSION=0.0.1
 
 TYPE:=release
+COMMIT=$(shell git rev-parse --short HEAD)
 
 BUILDTIME=$(shell date -u)
 GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags \
 		'-s -w -extldflags "-static" -buildid= \
-		-X "shelltool/shelltool/constant.Version=$(VERSION)-$(TYPE)" \
+		-X "shelltool/shelltool/constant.Version=$(VERSION)-$(TYPE)-$(COMMIT)" \
 		-X "shelltool/shelltool/constant.BuildTime=$(BUILDTIME)" \
 		-X "shelltool/shelltool/constant.AppType=$(TYPE)"'
 
