@@ -6,8 +6,7 @@ TYPE:=release
 
 BUILDTIME=$(shell date -u)
 GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags \
-		'-s -w -extldflags "-static" \
-		-buildid= \
+		'-s -w -extldflags "-static" -buildid= \
 		-X "shelltool/shelltool/constant.Version=$(VERSION)-$(TYPE)" \
 		-X "shelltool/shelltool/constant.BuildTime=$(BUILDTIME)" \
 		-X "shelltool/shelltool/constant.AppType=$(TYPE)"'
@@ -27,9 +26,7 @@ PLATFORM_LIST = \
 
 all: normal_build
 
-normal_build: linux-amd64 \
-	  linux-arm64 linux-armv5 linux-armv6 linux-armv7 \
-	  linux-mips linux-mipsle linux-mips64 linux-mips64le
+normal_build: $(PLATFORM_LIST)
 
 linux-amd64:
 	GOARCH=amd64 GOOS=linux GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
@@ -58,7 +55,7 @@ linux-mips64:
 linux-mips64le:
 	GOARCH=mips64le GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 
-upx:
+upx: normal_build
 	mkdir -p $(BINDIR)/upx
 	-rm $(BINDIR)/upx/*
 
