@@ -30,8 +30,14 @@ jobs:
       - name: Build
         run: make all
 
+      - name: Install UPX
+        run: sudo apt-get install -y upx-ucl
+
+      - name: Compress with UPX
+        run: make upx
+
       - name: Generate release name
-        run: echo "RELEASE_NAME=V$(date +'%Y.%m.%d.%H.%M')" >> $GITHUB_ENV
+        run: TZ='Asia/Shanghai' echo "RELEASE_NAME=V$(date +'%Y.%m.%d.%H.%M')" >> $GITHUB_ENV
 
       - name: Create Release and Upload Assets
         uses: akkuman/gitea-release-action@v1
@@ -39,6 +45,6 @@ jobs:
           token: ${{ secrets.GITEA_TOKEN }}
           server_url: ${{ gitea.server_url }}
           files: |
-            bin/*
+            bin/upx/*
           name: ${{ env.RELEASE_NAME }}
           body: "Automated release created by Gitea Actions"
