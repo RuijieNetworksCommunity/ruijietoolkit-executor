@@ -31,7 +31,9 @@ jobs:
         run: make all
 
       - name: Install UPX
-        run: sudo apt-get install -y upx-ucl
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y upx-ucl
 
       - name: Compress with UPX
         run: make upx
@@ -45,6 +47,7 @@ jobs:
           token: ${{ secrets.GITEA_TOKEN }}
           server_url: ${{ gitea.server_url }}
           files: |
+            bin/*
             bin/upx/*
           name: ${{ env.RELEASE_NAME }}
           body: "Automated release created by Gitea Actions"
