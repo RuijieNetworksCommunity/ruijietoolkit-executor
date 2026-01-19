@@ -6,11 +6,28 @@ TYPE:=release
 
 BUILDTIME=$(shell date -u)
 GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags \
-		'-X "shelltool/shelltool/constant.Version=$(VERSION)-$(TYPE)" \
+		'-s -w -extldflags "-static" \
+		-buildid= \
+		-X "shelltool/shelltool/constant.Version=$(VERSION)-$(TYPE)" \
 		-X "shelltool/shelltool/constant.BuildTime=$(BUILDTIME)" \
 		-X "shelltool/shelltool/constant.AppType=$(TYPE)"'
 
-all: linux-amd64 \
+UPX_FLAGS := --best --lzma
+
+PLATFORM_LIST = \
+	linux-amd64 \
+	linux-arm64 \
+	linux-armv5 \
+	linux-armv6 \
+	linux-armv7 \
+	linux-mips \
+	linux-mipsle \
+	linux-mips64 \
+	linux-mips64le
+
+all: normal_build
+
+normal_build: linux-amd64 \
 	  linux-arm64 linux-armv5 linux-armv6 linux-armv7 \
 	  linux-mips linux-mipsle linux-mips64 linux-mips64le
 
@@ -40,3 +57,16 @@ linux-mips64:
 
 linux-mips64le:
 	GOARCH=mips64le GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+upx:
+	mkdir -p $(BINDIR)/upx
+	-rm $(BINDIR)/upx/*
+
+	@for arch in $(PLATFORM_LIST); do \
+		file="$(BINDIR)/$(NAME)-$$arch"; \
+		if [ -f "$$file" ]; then \
+			echo "UPX: $$file"; \
+			upx $(UPX_FLAGS) "$$file" -o $(BINDIR)/upx/$(NAME)-$$arch-uxp >/dev/null 2>&1 || \
+				echo "  -> skip (unsupported or error)"; \
+		fi; \
+	done
