@@ -6,11 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"shelltool/shelltool/constant"
-)
+	"time"
 
-// =======================
-// 全局配置
-// =======================
+	"github.com/beevik/ntp"
+)
 
 // findAvailableShell 自动探测系统可用的 Shell
 func findAvailableShell() string {
@@ -27,7 +26,20 @@ func findAvailableShell() string {
 	return "/bin/sh"
 }
 
+// syncTime 自动同步时间
+func syncTime() {
+	for _, ntpServer := range constant.NTPServers {
+		ntpTime, err := ntp.Time(ntpServer)
+		if err == nil {
+			log.Printf("Time synchronized with %s: %s", ntpServer, ntpTime.Format(time.RFC1123))
+			return
+		}
+	}
+	log.Printf("Failed to sync time with any NTP server.")
+}
+
 func main() {
+	syncTime()
 	log.Printf("Version: %s-%s", constant.Version, constant.AppName)
 	log.Printf("BuildTime: %s", constant.BuildTime)
 	constant.DefaultShell = findAvailableShell()
